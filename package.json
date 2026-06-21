@@ -1,0 +1,6 @@
+"scripts": {
+  "start": "node backend/server.js",
+  "dev": "nodemon backend/server.js",
+  "frontend": "cd frontend && npx serve",
+  "both": "concurrently \"npm run dev\" \"npm run frontend\""
+}
