@@ -1,6 +1,23 @@
-"scripts": {
-  "start": "node backend/server.js",
-  "dev": "nodemon backend/server.js",
-  "frontend": "cd frontend && npx serve",
-  "both": "concurrently \"npm run dev\" \"npm run frontend\""
+{
+  "name": "robo-x",
+  "version": "0.2.0",
+  "description": "A 2D physics simulator for robot building and competition",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "nodemon backend/server.js",
+    "test": "echo \"No tests yet\""
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^7.4.0",
+    "socket.io": "^4.7.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
 }
