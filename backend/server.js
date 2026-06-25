@@ -40,13 +40,79 @@ mongoose.connect(MONGODB_URI, {
 })
 .then(() => {
     console.log('✅ Connected to MongoDB successfully!');
+    initializeSystem();
 })
 .catch((err) => {
     console.error('❌ MongoDB connection error:', err.message);
 });
 
 // ============================================
-// ✅ ROUTES - تأكد من وجود هذه الأسطر
+// ✅ INITIALIZE SYSTEM
+// ============================================
+
+const initializeSystem = async () => {
+    try {
+        const AdminAccount = require('./models/AdminAccount');
+        let adminAccount = await AdminAccount.findOne();
+        if (!adminAccount) {
+            adminAccount = new AdminAccount();
+            await adminAccount.save();
+            console.log('✅ Admin Account created successfully!');
+        }
+        
+        const SystemSettings = require('./models/SystemSettings');
+        let settings = await SystemSettings.findOne();
+        if (!settings) {
+            settings = new SystemSettings();
+            await settings.save();
+            console.log('✅ System Settings created successfully!');
+        }
+        
+        const Block = require('./models/Block');
+        const existingGenesis = await Block.findOne({ index: 0 });
+        if (!existingGenesis) {
+            const crypto = require('crypto');
+            const genesisBlock = new Block({
+                index: 0,
+                timestamp: new Date(),
+                previousHash: '0',
+                hash: '',
+                transaction: {
+                    type: 'genesis',
+                    from: null,
+                    to: 'admin',
+                    amount: 1000000000,
+                    description: 'Genesis Block - Base Supply 1,000,000,000 RX'
+                },
+                nonce: 0,
+                isValid: true,
+                verified: true
+            });
+            
+            const data = {
+                index: genesisBlock.index,
+                timestamp: genesisBlock.timestamp.getTime(),
+                previousHash: genesisBlock.previousHash,
+                transaction: genesisBlock.transaction,
+                nonce: genesisBlock.nonce
+            };
+            genesisBlock.hash = crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');
+            
+            await genesisBlock.save();
+            console.log('✅ Genesis Block created successfully!');
+        }
+        
+        console.log('✅ System initialized successfully!');
+        console.log(`📊 Total Supply: ${settings?.totalSupply || 1000000000} RX`);
+        console.log(`📊 Reserve Balance: ${adminAccount?.reserveBalance || 0} RX`);
+        
+    } catch (error) {
+        console.error('❌ System initialization error:', error);
+    }
+};
+
+// ============================================
+// ✅ ROUTES
 // ============================================
 
 // Auth Routes
@@ -54,6 +120,9 @@ app.use('/api/auth', require('./routes/auth'));
 
 // Admin Routes
 app.use('/api/admin', require('./routes/admin'));
+
+// Blockchain Routes
+app.use('/api/blockchain', require('./routes/blockchain'));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -97,6 +166,14 @@ app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/public/admin/index.html'));
 });
 
+app.get('/explorer', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/public/explorer.html'));
+});
+
+app.get('/wallet', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/public/wallet.html'));
+});
+
 // ============================================
 // SOCKET.IO
 // ============================================
@@ -120,6 +197,8 @@ server.listen(PORT, () => {
     console.log(`📊 Dashboard: http://localhost:${PORT}/dashboard`);
     console.log(`🔐 Login: http://localhost:${PORT}/login`);
     console.log(`📝 Register: http://localhost:${PORT}/register`);
+    console.log(`🔗 Blockchain Explorer: http://localhost:${PORT}/explorer`);
+    console.log(`💰 Wallet: http://localhost:${PORT}/wallet`);
     console.log(`📦 Database: ${mongoose.connection.readyState === 1 ? '✅ Connected' : '❌ Disconnected'}`);
     console.log('='.repeat(50));
 });

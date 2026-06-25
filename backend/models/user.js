@@ -1,12 +1,11 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const UserSchema = new mongoose.Schema({
-    // ✅ معرف المستخدم الفريد (RX000000)
+const userSchema = new mongoose.Schema({
     userId: {
         type: String,
         unique: true,
-        index: true
+        sparse: true
     },
     username: {
         type: String,
@@ -35,53 +34,15 @@ const UserSchema = new mongoose.Schema({
     },
     balance: {
         type: Number,
-        default: 100,
-        min: 0
-    },
-    totalEarnings: {
-        type: Number,
-        default: 0
-    },
-    totalWithdrawals: {
-        type: Number,
-        default: 0
+        default: 100
     },
     stats: {
+        totalMatches: { type: Number, default: 0 },
         wins: { type: Number, default: 0 },
         losses: { type: Number, default: 0 },
-        draws: { type: Number, default: 0 },
-        totalMatches: { type: Number, default: 0 },
-        rank: {
-            type: String,
-            enum: ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Legend'],
-            default: 'Bronze'
-        },
-        rankPoints: { type: Number, default: 0 }
+        rank: { type: String, default: 'Bronze' },
+        rating: { type: Number, default: 1000 }
     },
-    preferences: {
-        language: {
-            type: String,
-            enum: ['en', 'ar'],
-            default: 'en'
-        },
-        theme: {
-            type: String,
-            enum: ['dark', 'light'],
-            default: 'dark'
-        }
-    },
-    robots: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Robot'
-    }],
-    activeCompetitions: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Competition'
-    }],
-    completedCompetitions: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Competition'
-    }],
     isBanned: {
         type: Boolean,
         default: false
@@ -91,61 +52,45 @@ const UserSchema = new mongoose.Schema({
         default: ''
     },
     bannedAt: {
-        type: Date
+        type: Date,
+        default: null
     },
     lastLogin: {
         type: Date,
         default: Date.now
     },
-    lastActivity: {
+    referralCode: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
+    referredBy: {
+        type: String,
+        default: null
+    },
+    referralEarnings: {
+        type: Number,
+        default: 0
+    },
+    achievements: [{
+        type: String
+    }],
+    competitionHistory: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Competition'
+    }],
+    createdAt: {
+        type: Date,
+        default: Date.now
+    },
+    updatedAt: {
         type: Date,
         default: Date.now
     }
-}, {
-    timestamps: true
 });
 
-// ============================================
-// ✅ إنشاء userId تلقائياً قبل حفظ المستخدم
-// ============================================
-
-UserSchema.pre('save', async function(next) {
-    // إذا كان userId موجوداً بالفعل، تخطى
-    if (this.userId) return next();
-    
-    try {
-        // العثور على آخر مستخدم للحصول على آخر رقم
-        const lastUser = await mongoose.model('User').findOne()
-            .sort({ userId: -1 })
-            .select('userId');
-        
-        let nextNumber = 1;
-        
-        if (lastUser && lastUser.userId) {
-            // استخراج الرقم من userId (مثل RX000005 -> 5)
-            const match = lastUser.userId.match(/RX(\d+)/);
-            if (match) {
-                nextNumber = parseInt(match[1]) + 1;
-            }
-        }
-        
-        // تنسيق الرقم إلى 6 أرقام (مثل 000001)
-        const paddedNumber = String(nextNumber).padStart(6, '0');
-        this.userId = `RX${paddedNumber}`;
-        
-        console.log(`✅ Generated userId: ${this.userId}`);
-        next();
-    } catch (error) {
-        console.error('❌ Error generating userId:', error);
-        next(error);
-    }
-});
-
-// ============================================
-// تشفير كلمة المرور قبل الحفظ
-// ============================================
-
-UserSchema.pre('save', async function(next) {
+// ✅ تشفير كلمة المرور قبل الحفظ
+userSchema.pre('save', async function(next) {
     if (!this.isModified('password')) return next();
     
     try {
@@ -157,94 +102,55 @@ UserSchema.pre('save', async function(next) {
     }
 });
 
-// ============================================
-// مقارنة كلمة المرور
-// ============================================
-
-UserSchema.methods.comparePassword = async function(password) {
+// ✅ ✅ ✅ توليد userId بتنسيق RX00000X (رقم تسلسلي)
+userSchema.pre('save', async function(next) {
+    // إذا كان userId موجوداً بالفعل، تخطى
+    if (this.userId) return next();
+    
     try {
-        return await bcrypt.compare(password, this.password);
+        // ✅ الحصول على أكبر رقم تسلسلي موجود
+        const lastUser = await mongoose.model('User').findOne()
+            .sort({ userId: -1 })
+            .select('userId');
+        
+        let nextNumber = 1;
+        
+        if (lastUser && lastUser.userId) {
+            // ✅ استخراج الرقم من userId (مثل RX000003 → 3)
+            const match = lastUser.userId.match(/RX(\d+)/);
+            if (match) {
+                nextNumber = parseInt(match[1]) + 1;
+            }
+        }
+        
+        // ✅ إنشاء userId جديد بتنسيق RX + 6 أرقام
+        this.userId = 'RX' + String(nextNumber).padStart(6, '0');
+        
+        console.log(`✅ Generated userId: ${this.userId} for user: ${this.username}`);
+        next();
+        
     } catch (error) {
-        return false;
+        console.error('❌ Error generating userId:', error);
+        next(error);
     }
-};
-
-// ============================================
-// باقي الدوال
-// ============================================
-
-UserSchema.methods.calculateRank = function() {
-    const points = this.stats.rankPoints || 0;
-    if (points >= 10000) return 'Legend';
-    if (points >= 5000) return 'Diamond';
-    if (points >= 2000) return 'Platinum';
-    if (points >= 1000) return 'Gold';
-    if (points >= 500) return 'Silver';
-    return 'Bronze';
-};
-
-UserSchema.methods.updateStats = function(result) {
-    this.stats.totalMatches += 1;
-    if (result === 'win') {
-        this.stats.wins += 1;
-        this.stats.rankPoints += 50;
-        this.totalEarnings += 10;
-    } else if (result === 'loss') {
-        this.stats.losses += 1;
-        this.stats.rankPoints = Math.max(0, this.stats.rankPoints - 10);
-    } else if (result === 'draw') {
-        this.stats.draws += 1;
-        this.stats.rankPoints += 10;
-    }
-    this.stats.rank = this.calculateRank();
-    this.lastActivity = Date.now();
-};
-
-UserSchema.methods.updateBalance = function(amount) {
-    const newBalance = this.balance + amount;
-    if (newBalance < 0) {
-        throw new Error('Insufficient balance');
-    }
-    this.balance = newBalance;
-    this.lastActivity = Date.now();
-    return this.balance;
-};
-
-UserSchema.methods.ban = function(reason) {
-    this.isBanned = true;
-    this.banReason = reason || 'No reason provided';
-    this.bannedAt = Date.now();
-    this.lastActivity = Date.now();
-};
-
-UserSchema.methods.unban = function() {
-    this.isBanned = false;
-    this.banReason = '';
-    this.bannedAt = null;
-    this.lastActivity = Date.now();
-};
-
-UserSchema.virtual('isAdmin').get(function() {
-    return this.role === 'admin';
 });
 
-UserSchema.virtual('winRate').get(function() {
-    if (this.stats.totalMatches === 0) return 0;
-    return Math.round((this.stats.wins / this.stats.totalMatches) * 100);
+// ✅ تحديث وقت التعديل قبل الحفظ
+userSchema.pre('save', function(next) {
+    this.updatedAt = Date.now();
+    next();
 });
 
-UserSchema.set('toJSON', { virtuals: true });
-UserSchema.set('toObject', { virtuals: true });
+// ✅ مقارنة كلمة المرور
+userSchema.methods.comparePassword = async function(candidatePassword) {
+    return await bcrypt.compare(candidatePassword, this.password);
+};
 
-// ============================================
-// INDEXES
-// ============================================
+// ✅ تحويل إلى JSON (إزالة كلمة المرور)
+userSchema.methods.toJSON = function() {
+    const obj = this.toObject();
+    delete obj.password;
+    return obj;
+};
 
-UserSchema.index({ userId: 1 });
-UserSchema.index({ email: 1 });
-UserSchema.index({ username: 1 });
-UserSchema.index({ 'stats.rank': -1 });
-UserSchema.index({ isBanned: 1 });
-UserSchema.index({ lastActivity: -1 });
-
-module.exports = mongoose.model('User', UserSchema);
+module.exports = mongoose.model('User', userSchema);
