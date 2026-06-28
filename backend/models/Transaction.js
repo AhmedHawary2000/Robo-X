@@ -5,7 +5,7 @@ const transactionSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        default: null
     },
     type: {
         type: String,
@@ -17,13 +17,16 @@ const transactionSchema = new mongoose.Schema({
             'prize',
             'referral',
             'welcome_award',
-            'admin_adjustment'
+            'admin_adjustment',
+            'mint',
+            'burn'
         ],
         required: true
     },
     amount: {
         type: Number,
-        required: true
+        required: true,
+        min: 0
     },
     fee: {
         type: Number,
@@ -32,11 +35,11 @@ const transactionSchema = new mongoose.Schema({
     
     // ✅ معلومات المرسل والمستقبل
     from: {
-        type: String,  // userId (RX000001)
+        type: String,
         default: null
     },
     to: {
-        type: String,  // userId (RX000002)
+        type: String,
         default: null
     },
     fromUserId: {
@@ -53,18 +56,8 @@ const transactionSchema = new mongoose.Schema({
     // ✅ حالة المعاملة
     status: {
         type: String,
-        enum: ['pending', 'approved', 'confirmed', 'failed', 'cancelled'],
+        enum: ['pending', 'confirmed', 'failed', 'cancelled'],
         default: 'pending'
-    },
-    
-    // ✅ الرصيد قبل وبعد
-    balanceBefore: {
-        type: Number,
-        default: 0
-    },
-    balanceAfter: {
-        type: Number,
-        default: 0
     },
     
     // ✅ معلومات Blockchain
@@ -82,9 +75,13 @@ const transactionSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
-    reason: {
-        type: String,
-        default: ''
+    balanceBefore: {
+        type: Number,
+        default: 0
+    },
+    balanceAfter: {
+        type: Number,
+        default: 0
     },
     metadata: {
         type: mongoose.Schema.Types.Mixed,
@@ -106,7 +103,6 @@ const transactionSchema = new mongoose.Schema({
         default: ''
     },
     
-    // ✅ التواريخ
     createdAt: {
         type: Date,
         default: Date.now
@@ -118,15 +114,15 @@ const transactionSchema = new mongoose.Schema({
 });
 
 // ✅ فهارس للبحث السريع
-transactionSchema.index({ userId: 1, createdAt: -1 });
+transactionSchema.index({ userId: 1 });
+transactionSchema.index({ from: 1, to: 1 });
 transactionSchema.index({ status: 1 });
 transactionSchema.index({ type: 1 });
-transactionSchema.index({ from: 1, to: 1 });
 transactionSchema.index({ blockIndex: 1 });
+transactionSchema.index({ createdAt: -1 });
 
-// ✅ تحديث وقت التعديل
 transactionSchema.pre('save', function(next) {
-    this.updatedAt = Date.now();
+    this.updatedAt = new Date();
     next();
 });
 

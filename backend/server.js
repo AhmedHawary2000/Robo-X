@@ -20,7 +20,10 @@ const io = socketIo(server, {
     }
 });
 
-// Middleware
+// ============================================
+// MIDDLEWARE
+// ============================================
+
 app.use(cors({
     origin: '*',
     credentials: true
@@ -28,11 +31,17 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Static Files
+// ============================================
+// STATIC FILES
+// ============================================
+
 app.use(express.static(path.join(__dirname, '../frontend/public')));
 app.use('/admin', express.static(path.join(__dirname, '../frontend/public/admin')));
 
-// MongoDB Connection
+// ============================================
+// MONGODB CONNECTION
+// ============================================
+
 mongoose.connect(MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
@@ -52,6 +61,7 @@ mongoose.connect(MONGODB_URI, {
 
 const initializeSystem = async () => {
     try {
+        // ✅ إنشاء حساب Admin
         const AdminAccount = require('./models/AdminAccount');
         let adminAccount = await AdminAccount.findOne();
         if (!adminAccount) {
@@ -60,6 +70,7 @@ const initializeSystem = async () => {
             console.log('✅ Admin Account created successfully!');
         }
         
+        // ✅ إنشاء إعدادات النظام
         const SystemSettings = require('./models/SystemSettings');
         let settings = await SystemSettings.findOne();
         if (!settings) {
@@ -68,6 +79,7 @@ const initializeSystem = async () => {
             console.log('✅ System Settings created successfully!');
         }
         
+        // ✅ إنشاء Genesis Block
         const Block = require('./models/Block');
         const existingGenesis = await Block.findOne({ index: 0 });
         if (!existingGenesis) {
@@ -102,6 +114,19 @@ const initializeSystem = async () => {
             console.log('✅ Genesis Block created successfully!');
         }
         
+        // ✅ ✅ ✅ إنشاء محفظة المدير - مع التحقق من وجود النموذج
+        try {
+            const AdminWallet = require('./models/AdminWallet');
+            if (AdminWallet && typeof AdminWallet.getAdminWallet === 'function') {
+                const adminWallet = await AdminWallet.getAdminWallet();
+                console.log(`✅ Admin Wallet initialized! Address: ${adminWallet.address}`);
+            } else {
+                console.warn('⚠️ AdminWallet model not properly loaded, skipping...');
+            }
+        } catch (walletError) {
+            console.warn('⚠️ AdminWallet initialization skipped:', walletError.message);
+        }
+        
         console.log('✅ System initialized successfully!');
         console.log(`📊 Total Supply: ${settings?.totalSupply || 1000000000} RX`);
         console.log(`📊 Reserve Balance: ${adminAccount?.reserveBalance || 0} RX`);
@@ -110,7 +135,6 @@ const initializeSystem = async () => {
         console.error('❌ System initialization error:', error);
     }
 };
-
 // ============================================
 // ✅ ROUTES
 // ============================================
@@ -123,6 +147,9 @@ app.use('/api/admin', require('./routes/admin'));
 
 // Blockchain Routes
 app.use('/api/blockchain', require('./routes/blockchain'));
+
+// Wallet Routes (جديد)
+app.use('/api/wallet', require('./routes/wallet'));
 
 // Health check
 app.get('/api/health', (req, res) => {
